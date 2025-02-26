@@ -35,9 +35,6 @@ async function connectDB() {
     AdminAnalyticsC = database.collection("adminAnalytics");
     AnnouncementsC = database.collection("announcements");
 
-    app.listen(port, () => {
-      console.log(`🚀 Server running on port ${port}`);
-    });
 
   } catch (error) {
     console.error("❌ MongoDB connection error:", error.message);
@@ -61,7 +58,8 @@ app.get("/trip", async (req, res) => {
     console.error("Fetch error:", error);
     res.status(500).json({ message: "Failed to fetch packages", error: error.message });
   }
-});
+}); 
+// Package Related
 app.get("/package", async (req, res) => {
   try {
     if (!PackagesC) {
@@ -75,3 +73,21 @@ app.get("/package", async (req, res) => {
   }
 });
 
+app.get("/packages-details/:id", async (req, res) => {
+  const { id } = req.params;
+  if (!ObjectId.isValid(id)) return res.status(400).json({ message: "Invalid packages ID" });
+  
+  try {
+    const packages = await PackagesC.findOne({ _id: new ObjectId(id) });
+    if (!packages) return res.status(404).json({ message: "packages not found" });
+    res.json(packages);
+  } catch (error) {
+    console.error("Fetch error:", error);
+    res.status(500).json({ message: "Failed to fetch packages", error: error.message });
+  }
+});
+// Package end
+// Stories start
+app.listen(port, () => {
+  console.log(`🚀 Server running on port ${port}`);
+});
