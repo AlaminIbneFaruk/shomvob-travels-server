@@ -1,5 +1,7 @@
 const express = require("express");
 const cors = require("cors");
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcryptjs");
 const { MongoClient, ObjectId, ServerApiVersion } = require("mongodb");
 require("dotenv").config();
 
@@ -18,7 +20,7 @@ const client = new MongoClient(uri, {
   },
 });
 
-let PackagesC, BookingsC, TransactionsC, TourGuidesC, StoriesC, ApplicationsC, AdminAnalyticsC, AnnouncementsC;
+let UsersC, PackagesC, BookingsC, TransactionsC, TourGuidesC, StoriesC, ApplicationsC, AdminAnalyticsC, AnnouncementsC;
 
 async function connectDB() {
   try {
@@ -26,27 +28,66 @@ async function connectDB() {
     console.log("✅ Connected to MongoDB!");
 
     const database = client.db("ShomvobTravels");
+    UsersC = database.collection("users");
     PackagesC = database.collection("packages");
-    BookingsC = database.collection("bookings");
-    TransactionsC = database.collection("transactions");
-    TourGuidesC = database.collection("tourGuides");
-    StoriesC = database.collection("stories");
-    ApplicationsC = database.collection("applications");
-    AdminAnalyticsC = database.collection("adminAnalytics");
-    AnnouncementsC = database.collection("announcements");
-
-
+    // other collections...
   } catch (error) {
     console.error("❌ MongoDB connection error:", error.message);
     process.exit(1); 
   }
 }
 
-
 connectDB();
 
 app.get("/", (req, res) => res.send("Hello World!"));
 
+// User Registration
+app.post("/register", async (req, res) => {
+  const { username, password } = req.body;
+  
+  // Check if user already exists
+  const existingUser = await UsersC.findOne({ username });
+  if (existingUser) return res.status(400).json({ message: "User already exists" });
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+  
+  const newUser = { username, password: hashedPassword };
+  await UsersC.insertOne(newUser);
+  
+  res.status(201).json({ message: "User registered successfully" });
+});
+
+// User Login
+app.post("/login", async (req, res) => {
+  const { username, password } = req.body;
+
+  const user = await UsersC.findOne({ username });
+  if (!user || !(await bcrypt.compare(password, user.password))) {
+    return res.status(401).json({ message: "Invalid credentials" });
+  }
+
+  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
+  res.json({ token });
+});
+
+// Middleware to protect routes
+const authenticateJWT = (req, res, next) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) return res.sendStatus(401);
+
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) return res.sendStatus(403);
+    req.user = user; // Save user info in request
+    next();
+  });
+};
+
+// Example of a protected route
+app.get("/protected", authenticateJWT, (req, res) => {
+  res.json({ message: "This is a protected route", user: req.user });
+});
+
+// Add your existing routes here...
 app.get("/trip", async (req, res) => {
   try {
     if (!PackagesC) {
@@ -58,77 +99,9 @@ app.get("/trip", async (req, res) => {
     console.error("Fetch error:", error);
     res.status(500).json({ message: "Failed to fetch packages", error: error.message });
   }
-}); 
-// Package Related
-app.get("/package", async (req, res) => {
-  try {
-    if (!PackagesC) {
-      return res.status(500).json({ message: "Database not initialized yet. Please try again later." });
-    }
-    const packages = await PackagesC.aggregate([{ $sample: { size: 3 } }]).toArray();
-    res.json(packages);
-  } catch (error) {
-    console.error("Fetch error:", error);
-    res.status(500).json({ message: "Failed to fetch packages", error: error.message });
-  }
 });
 
-app.get("/packages-details/:id", async (req, res) => {
-  const { id } = req.params;
-  if (!ObjectId.isValid(id)) return res.status(400).json({ message: "Invalid packages ID" });
-  
-  try {
-    const packages = await PackagesC.findOne({ _id: new ObjectId(id) });
-    if (!packages) return res.status(404).json({ message: "packages not found" });
-    res.json(packages);
-  } catch (error) {
-    console.error("Fetch error:", error);
-    res.status(500).json({ message: "Failed to fetch packages", error: error.message });
-  }
-});
-// Package end
-// Stories start
-app.get("/community", async (req, res) => {
-  try {
-    if (!StoriesC) {
-      return res.status(500).json({ message: "Database not initialized yet. Please try again later." });
-    }
-    const stories = await StoriesC.aggregate([{ $sample: { size: 4 } }]).toArray();
-    res.json(stories);
-  } catch (error) {
-    console.error("Fetch error:", error);
-    res.status(500).json({ message: "Failed to fetch stories", error: error.message });
-  }
-});
-// Stories end
-// Tour Guides start
-app.get("/tour-guide", async (req, res) => {
-  try {
-    if (!TourGuidesC) {
-      return res.status(500).json({ message: "Database not initialized yet. Please try again later." });
-    }
-    const tourGuides = await TourGuidesC.aggregate([{ $sample: { size: 6 } }]).toArray();
-    res.json(tourGuides);
-  } catch (error) {
-    console.error("Fetch error:", error);
-    res.status(500).json({ message: "Failed to fetch stories", error: error.message });
-  }
-});
-app.get("/tour-guide-details/:id", async (req, res) => {
-  const { id } = req.params;
-  if (!ObjectId.isValid(id)) return res.status(400).json({ message: "Invalid packages ID" });
-  
-  try {
-    const tourGuides = await TourGuidesC.findOne({ _id: new ObjectId(id) });
-    if (!tourGuides) return res.status(404).json({ message: "tour guides not found" });
-    res.json(tourGuides);
-  } catch (error) {
-    console.error("Fetch error:", error);
-    res.status(500).json({ message: "Failed to fetch tour guides", error: error.message });
-  }
-});
-// Tour Guide end
-
+// Start server
 app.listen(port, () => {
   console.log(`🚀 Server running on port ${port}`);
 });
