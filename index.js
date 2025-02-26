@@ -101,7 +101,21 @@ app.get("/community", async (req, res) => {
   }
 });
 // Stories end
+// Tour Guides start
+app.get("/tour-guide", async (req, res) => {
+  try {
+    if (!TourGuidesC) {
+      return res.status(500).json({ message: "Database not initialized yet. Please try again later." });
+    }
+    const tourGuides = await TourGuidesC.aggregate([{ $sample: { size: 6 } }]).toArray();
+    res.json(tourGuides);
+  } catch (error) {
+    console.error("Fetch error:", error);
+    res.status(500).json({ message: "Failed to fetch stories", error: error.message });
+  }
+});
 
+// Tour Guide end
 
 app.listen(port, () => {
   console.log(`🚀 Server running on port ${port}`);
