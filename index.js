@@ -114,7 +114,19 @@ app.get("/tour-guide", async (req, res) => {
     res.status(500).json({ message: "Failed to fetch stories", error: error.message });
   }
 });
-
+app.get("/tour-guide-details/:id", async (req, res) => {
+  const { id } = req.params;
+  if (!ObjectId.isValid(id)) return res.status(400).json({ message: "Invalid packages ID" });
+  
+  try {
+    const tourGuides = await TourGuidesC.findOne({ _id: new ObjectId(id) });
+    if (!tourGuides) return res.status(404).json({ message: "tour guides not found" });
+    res.json(tourGuides);
+  } catch (error) {
+    console.error("Fetch error:", error);
+    res.status(500).json({ message: "Failed to fetch tour guides", error: error.message });
+  }
+});
 // Tour Guide end
 
 app.listen(port, () => {
