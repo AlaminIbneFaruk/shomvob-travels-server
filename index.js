@@ -18,14 +18,21 @@ const client = new MongoClient(uri, {
   },
 });
 
-let collection;
 
+let PackagesC,BookingsC,TransactionsC,TourGuidesC,StoriesC,ApplicationsC,AdminAnalyticsC,AnnouncementsC
 async function connectDB() {
   try {
     await client.connect();
     console.log("Connected to MongoDB!");
     const database = client.db("ShomvobTravels");
-    collection = database.collection("packages");
+    PackagesC = database.collection("packages");
+    BookingsC = database.collection("bookings");
+    TransactionsC = database.collection("transactions");
+    TourGuidesC = database.collection("tourGuides");
+    StoriesC = database.collection("stories");
+    ApplicationsC = database.collection("applications");
+    AdminAnalyticsC = database.collection("adminAnalytics");
+    AnnouncementsC = database.collection("announcements");
   } catch (error) {
     console.error("MongoDB connection error:", error.message);
     process.exit(1);
@@ -36,7 +43,15 @@ async function connectDB() {
 connectDB();
 
 app.get("/", (req, res) => res.send("Hello World!"));
-
+app.get("/trips", async (req, res) => {
+  try {
+      const packages = await PackagesC.find().toArray();
+      res.json(packages);
+  } catch (error) {
+      console.error("Fetch error:", error);
+      res.status(500).json({ message: "Failed to fetch packages", error: error.message });
+  }
+});
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
