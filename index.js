@@ -88,6 +88,21 @@ app.get("/packages-details/:id", async (req, res) => {
 });
 // Package end
 // Stories start
+app.get("/community", async (req, res) => {
+  try {
+    if (!StoriesC) {
+      return res.status(500).json({ message: "Database not initialized yet. Please try again later." });
+    }
+    const stories = await StoriesC.aggregate([{ $sample: { size: 4 } }]).toArray();
+    res.json(stories);
+  } catch (error) {
+    console.error("Fetch error:", error);
+    res.status(500).json({ message: "Failed to fetch stories", error: error.message });
+  }
+});
+// Stories end
+
+
 app.listen(port, () => {
   console.log(`🚀 Server running on port ${port}`);
 });
