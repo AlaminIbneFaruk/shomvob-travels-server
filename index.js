@@ -1,7 +1,5 @@
 const express = require("express");
 const cors = require("cors");
-const jwt = require("jsonwebtoken");
-const bcrypt = require("bcryptjs");
 const { MongoClient, ObjectId, ServerApiVersion } = require("mongodb");
 require("dotenv").config();
 const crypto = require("crypto");
@@ -18,7 +16,6 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-
 app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
@@ -66,43 +63,15 @@ async function connectDB() {
 connectDB();
 
 app.get("/", (req, res) => res.send("Hello World!"));
-
-// Utility function to generate JWT
-const generateToken = (payload) => {
-  return jwt.sign(payload, process.env.JWT_SECRET, {
-    expiresIn: "1h", // Or any other duration
-  });
-};
-
-// Middleware for authentication
-const authenticateJWT = (req, res, next) => {
-  const token = req.cookies.jwt;
-
-  if (!token) {
-    return res.sendStatus(401);
-  }
-
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-    if (err) {
-      console.error("JWT Verification Error:", err); // Log the error
-      return res.sendStatus(403);
-    }
-
-    req.user = user;
-    next();
-  });
-};
-
-// AUTH ROUTES
 // Register
-app.get("/auth/register", async (req, res) => {
+app.get("/register", async (req, res) => {
   const existingUser = await UsersC.find().toArray();
   if (existingUser) {
     return res.send({ existingUser });
   } else {
   }
 });
-app.post("/auth/register", async (req, res) => {
+app.post("/register", async (req, res) => {
   const { username, password, email } = req.body;
 
   try {
@@ -127,8 +96,7 @@ app.post("/auth/register", async (req, res) => {
 });
 
 // Login
-app.get("/auth/login", async (req, res) => {
-  const  username="Bob Smith", password="Bob Smith"  
+app.get("/login", async (req, res) => {
   try {
     const user = await UsersC.findOne({ name:username });
     if (!user) {
@@ -143,7 +111,7 @@ app.get("/auth/login", async (req, res) => {
     res.status(500).json({ message: "Failed to login", error: error.message });
   }
 });
-app.post("/auth/login", async (req, res) => {
+app.post("/login", async (req, res) => {
   const { username, password } = req.body;
   try {
     const user = await UsersC.findOne({ username });
@@ -151,7 +119,7 @@ app.post("/auth/login", async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = (password=== user.password);
     if (!isPasswordValid) {
       return res.status(401).json({ message: "Invalid credentials" });
     }
@@ -164,15 +132,15 @@ app.post("/auth/login", async (req, res) => {
 });
 
 // Logout
-app.get("/auth/logout",(req,res)=>{
+app.get("/logout",(req,res)=>{
   res.json({ message: "logout successfully" })
 })
-app.post("/auth/logout", (req, res) => {
+app.post("/logout", (req, res) => {
   res.json({ message: "Logged out successfully" });
 });
 
 // Forgot Password (Implementation requires email sending and reset token generation)
-app.post("/auth/forgot-password", async (req, res) => {
+app.post("/forgot-password", async (req, res) => {
   const { email } = req.body;
 
   try {
@@ -201,41 +169,6 @@ app.post("/auth/forgot-password", async (req, res) => {
         message: "Failed to process forgot password request",
         error: error.message,
       });
-  }
-});
-
-// Reset Password
-app.post("/auth/reset-password", async (req, res) => {
-  const { resetToken, newPassword } = req.body;
-
-  try {
-    const user = await UsersC.findOne({
-      resetToken: resetToken,
-      passwordResetExpires: { $gt: Date.now() },
-    });
-
-    if (!user) {
-      return res
-        .status(400)
-        .json({ message: "Invalid or expired reset token" });
-    }
-    await UsersC.updateOne(
-      { _id: user._id },
-      {
-        $set: {
-          password: password,
-          resetToken: null,
-          passwordResetExpires: null,
-        },
-      }
-    );
-
-    res.json({ message: "Password reset successfully" });
-  } catch (error) {
-    console.error("Reset password error:", error);
-    res
-      .status(500)
-      .json({ message: "Failed to reset password", error: error.message });
   }
 });
 
@@ -312,13 +245,13 @@ app.get("/packages/random", async (req, res) => {
       { $sample: { size: 3 } },
     ]).toArray();
     res.json(packages);
-  } catch (error) {
-    console.error("Fetch random packages error:", error);
+  } catch (err) {
+    console.error(`Fetch random packages error:`,err);
     res
       .status(500)
       .json({
         message: "Failed to fetch random packages",
-        error: error.message,
+        error: err.message,
       });
   }
 });
