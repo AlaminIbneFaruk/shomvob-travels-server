@@ -4,12 +4,15 @@ const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
 const { MongoClient, ObjectId, ServerApiVersion } = require("mongodb");
 require("dotenv").config();
+const crypto = require("crypto");
+const cookieParser = require("cookie-parser");
 
 const app = express();
-const port = process.env.PORT || 5000;
+const port = process.env.PORT || 9000;
 
 app.use(cors());
 app.use(express.json());
+app.use(cookieParser());
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.stnyf.mongodb.net/?retryWrites=true&w=majority`;
 const client = new MongoClient(uri, {
@@ -20,7 +23,15 @@ const client = new MongoClient(uri, {
   },
 });
 
-let UsersC, PackagesC, BookingsC, TransactionsC, TourGuidesC, StoriesC, ApplicationsC, AdminAnalyticsC, AnnouncementsC;
+let UsersC,
+  PackagesC,
+  BookingsC,
+  TransactionsC,
+  TourGuidesC,
+  StoriesC,
+  ApplicationsC,
+  AdminAnalyticsC,
+  AnnouncementsC;
 
 async function connectDB() {
   try {
@@ -30,78 +41,266 @@ async function connectDB() {
     const database = client.db("ShomvobTravels");
     UsersC = database.collection("users");
     PackagesC = database.collection("packages");
-    // other collections...
+    BookingsC = database.collection("bookings");
+    TransactionsC = database.collection("transactions");
+    TourGuidesC = database.collection("tourGuides");
+    StoriesC = database.collection("stories");
+    ApplicationsC = database.collection("applications");
+    AdminAnalyticsC = database.collection("adminAnalytics");
+    AnnouncementsC = database.collection("announcements");
   } catch (error) {
     console.error("❌ MongoDB connection error:", error.message);
-    process.exit(1); 
+    process.exit(1);
   }
 }
 
 connectDB();
 
 app.get("/", (req, res) => res.send("Hello World!"));
+// user
+ app.get('/user', async (req, res) => {
+            const result = await usersCollection.find().toArray();
+            res.send(result);
+        });
 
-// User Registration
-app.post("/register", async (req, res) => {
-  const { username, password } = req.body;
-  
-  // Check if user already exists
-  const existingUser = await UsersC.findOne({ username });
-  if (existingUser) return res.status(400).json({ message: "User already exists" });
+        app.post('/user', async (req, res) => {
+            const user = req.body;
+            const result = await usersCollection.insertOne(user);
+            res.send(result);
+        });
 
-  const hashedPassword = await bcrypt.hash(password, 10);
-  
-  const newUser = { username, password: hashedPassword };
-  await UsersC.insertOne(newUser);
-  
-  res.status(201).json({ message: "User registered successfully" });
-});
+        app.patch('/user/update/:id', async (req, res) => {
+            const id = req.params.id;
+            const updateInfo = req.body;
+            const result = await usersCollection.updateOne(
+                { _id: new ObjectId(id) },
+                { $set: updateInfo }
+            );
+            res.send(result);
+        });
 
-// User Login
-app.post("/login", async (req, res) => {
-  const { username, password } = req.body;
+        app.patch('/user/role/:email', async (req, res) => {
+            const email = req.params.email;
+            const { role } = req.body;
+            const result = await usersCollection.updateOne(
+                { email },
+                { $set: { role } }
+            );
+            res.send(result);
+        });
 
-  const user = await UsersC.findOne({ username });
-  if (!user || !(await bcrypt.compare(password, user.password))) {
-    return res.status(401).json({ message: "Invalid credentials" });
-  }
+        app.patch('/user/guide-request/:id', async (req, res) => {
+            const id = req.params.id;
+            const { status } = req.body;
+            const result = await usersCollection.updateOne(
+                { _id: new ObjectId(id) },
+                { $set: { guideRequestStatus: status } }
+            );
+            res.send(result);
+        });
 
-  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: "1h" });
-  res.json({ token });
-});
+        app.delete('/user/:id', async (req, res) => {
+            const id = req.params.id;
+            const result = await usersCollection.deleteOne({ _id: new ObjectId(id) });
+            res.send(result);
+        });
 
-// Middleware to protect routes
-const authenticateJWT = (req, res, next) => {
-  const token = req.headers.authorization?.split(" ")[1];
-  if (!token) return res.sendStatus(401);
+        // Package Routes
+        app.get('/package', async (req, res) => {
+            const result = await packagesCollection.find().toArray();
+            res.send(result);
+        });
 
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-    if (err) return res.sendStatus(403);
-    req.user = user; // Save user info in request
-    next();
-  });
-};
+        app.get('/package/random', async (req, res) => {
+            const result = await packagesCollection.aggregate([
+                { $sample: { size: 3 } }
+            ]).toArray();
+            res.send(result);
+        });
 
-// Example of a protected route
-app.get("/protected", authenticateJWT, (req, res) => {
-  res.json({ message: "This is a protected route", user: req.user });
-});
+        app.get('/package/:id', async (req, res) => {
+            const id = req.params.id;
+            const result = await packagesCollection.findOne({ _id: new ObjectId(id) });
+            res.send(result);
+        });
 
-// Add your existing routes here...
-app.get("/trip", async (req, res) => {
-  try {
-    if (!PackagesC) {
-      return res.status(500).json({ message: "Database not initialized yet. Please try again later." });
-    }
-    const packages = await PackagesC.find().toArray();
-    res.json(packages);
-  } catch (error) {
-    console.error("Fetch error:", error);
-    res.status(500).json({ message: "Failed to fetch packages", error: error.message });
-  }
-});
+        app.post('/package', async (req, res) => {
+            const package = req.body;
+            const result = await packagesCollection.insertOne(package);
+            res.send(result);
+        });
 
-// Start server
+        app.patch('/package/:id', async (req, res) => {
+            const id = req.params.id;
+            const updateData = req.body;
+            const result = await packagesCollection.updateOne(
+                { _id: new ObjectId(id) },
+                { $set: updateData }
+            );
+            res.send(result);
+        });
+
+        app.delete('/package/:id', async (req, res) => {
+            const id = req.params.id;
+            const result = await packagesCollection.deleteOne({ _id: new ObjectId(id) });
+            res.send(result);
+        });
+
+        // Booking Routes
+        app.get('/booking', async (req, res) => {
+            const result = await bookingsCollection.find().toArray();
+            res.send(result);
+        });
+
+        app.get('/booking/user/:email', async (req, res) => {
+            const email = req.params.email;
+            const result = await bookingsCollection.find({ userEmail: email }).toArray();
+            res.send(result);
+        });
+
+        app.get('/booking/guide/:email', async (req, res) => {
+            const email = req.params.email;
+            const result = await bookingsCollection.find({ guideEmail: email }).toArray();
+            res.send(result);
+        });
+
+        app.post('/booking', async (req, res) => {
+            const booking = req.body;
+            const result = await bookingsCollection.insertOne(booking);
+            res.send(result);
+        });
+
+        app.patch('/booking/:id', async (req, res) => {
+            const id = req.params.id;
+            const updateData = req.body;
+            const result = await bookingsCollection.updateOne(
+                { _id: new ObjectId(id) },
+                { $set: updateData }
+            );
+            res.send(result);
+        });
+
+        app.delete('/booking/:id', async (req, res) => {
+            const id = req.params.id;
+            const result = await bookingsCollection.deleteOne({ _id: new ObjectId(id) });
+            res.send(result);
+        });
+
+        // Tour Guide Routes
+        app.get('/guide', async (req, res) => {
+            const result = await guidesCollection.find().toArray();
+            res.send(result);
+        });
+
+        app.get('/guide/random', async (req, res) => {
+            const result = await guidesCollection.aggregate([
+                { $sample: { size: 4 } }
+            ]).toArray();
+            res.send(result);
+        });
+
+        app.get('/guide/:email', async (req, res) => {
+            const email = req.params.email;
+            const result = await guidesCollection.findOne({ email });
+            res.send(result);
+        });
+
+        app.post('/guide', async (req, res) => {
+            const guide = req.body;
+            const result = await guidesCollection.insertOne(guide);
+            res.send(result);
+        });
+
+        app.patch('/guide/:email', async (req, res) => {
+            const email = req.params.email;
+            const updateData = req.body;
+            const result = await guidesCollection.updateOne(
+                { email },
+                { $set: updateData }
+            );
+            res.send(result);
+        });
+
+        app.delete('/guide/:id', async (req, res) => {
+            const id = req.params.id;
+            const result = await guidesCollection.deleteOne({ _id: new ObjectId(id) });
+            res.send(result);
+        });
+
+        // Story Routes
+        app.get('/story', async (req, res) => {
+            const result = await storiesCollection.find().toArray();
+            res.send(result);
+        });
+
+        app.get('/story/user/:email', async (req, res) => {
+            const email = req.params.email;
+            const result = await storiesCollection.find({ authorEmail: email }).toArray();
+            res.send(result);
+        });
+
+        app.post('/story', async (req, res) => {
+            const story = req.body;
+            const result = await storiesCollection.insertOne(story);
+            res.send(result);
+        });
+
+        app.patch('/story/:id', async (req, res) => {
+            const id = req.params.id;
+            const updateData = req.body;
+            const result = await storiesCollection.updateOne(
+                { _id: new ObjectId(id) },
+                { $set: updateData }
+            );
+            res.send(result);
+        });
+
+        app.delete('/story/:id', async (req, res) => {
+            const id = req.params.id;
+            const result = await storiesCollection.deleteOne({ _id: new ObjectId(id) });
+            res.send(result);
+        });
+
+        // Payment Routes
+        app.get('/payment', async (req, res) => {
+            const result = await paymentsCollection.find().toArray();
+            res.send(result);
+        });
+
+        app.post('/payment', async (req, res) => {
+            const payment = req.body;
+            const result = await paymentsCollection.insertOne(payment);
+            res.send(result);
+        });
+
+        app.post('/payment/intent', async (req, res) => {
+            // Stripe payment intent implementation would go here
+            res.send({ clientSecret: 'test_client_secret' });
+        });
+
+        // Admin Analytics Routes
+        app.get('/analytics', async (req, res) => {
+            const usersCount = await usersCollection.countDocuments();
+            const packagesCount = await packagesCollection.countDocuments();
+            const guidesCount = await guidesCollection.countDocuments();
+            const bookingsCount = await bookingsCollection.countDocuments();
+            
+            res.send({
+                users: usersCount,
+                packages: packagesCount,
+                guides: guidesCount,
+                bookings: bookingsCount
+            });
+        });
+
+        app.get('/analytics/chart', async (req, res) => {
+            const result = await bookingsCollection.aggregate([
+                { $group: { _id: "$tourDate", count: { $sum: 1 } } },
+                { $sort: { _id: 1 } }
+            ]).toArray();
+            res.send(result);
+        });
+
 app.listen(port, () => {
-  console.log(`🚀 Server running on port ${port}`);
+  console.log(`Server running on port ${port}`);
 });
